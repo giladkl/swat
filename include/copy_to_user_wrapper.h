@@ -10,8 +10,8 @@
  *          them yet, because only in post_copy we know if copy suceeded.
  * 
  * @ret: 
- *      1 == run post_syscall after syscall is done
- *      0 == don't run post_syscall after syscall
+ *      1 == run post_copy after syscall is done
+ *      0 == don't run post_copy after syscall
  */
 int pre_copy(struct kretprobe_instance * probe, struct pt_regs *regs);
 
