@@ -1,24 +1,23 @@
 #ifndef COPY_TO_USER_WRAPPER_H
 #define COPY_TO_USER_WRAPPER_H
 
-/*
- * @purpose: Record all data kernel copies to userspace processes we record
- * 
- * @notes: 
- *      - Runs at the beggining of every copy_to_user called on system.
- *      - The pre_copy function should just record copy params and not save
- *          them yet, because only in post_copy we know if copy suceeded.
- * 
- * @ret: 
- *      1 == run post_copy after syscall is done
- *      0 == don't run post_copy after syscall
- */
-int pre_copy(struct kretprobe_instance * probe, struct pt_regs *regs);
+struct copy_record
+{
+    void * from;
+    void * to;
+    unsigned long len;
+    void * bytes;
+    struct list_head list;
+};
 
 /*
- * @purpose: Runs AFTER copy_to_user, and if it was successfull,
- *              record copied data for recording..
+ * @purpose: Hook copy_to_user
  */
-int post_copy(struct kretprobe_instance *probe, struct pt_regs *regs);
+int init_copy_hook(void);
+
+/*
+ * @purpose: Unhool copy_to_user
+ */
+void remove_copy_hook(void);
 
 #endif

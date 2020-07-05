@@ -1,28 +1,39 @@
 #ifndef SYSCALL_WRAPPER_H
 #define SYSCALL_WRAPPER_H
 
-/*
- * @purpose:    Record all system calls recorded processes do.
- * 
- * @notes:
- *      - Runs at the beggining of every syscall called on system.
- *      - The pre_syscall function should just record syscall params,
- *          only on post_syscall we record entire syscall (only then we
- *          have the return value of syscall)
- * 
- *  * @ret: 
- *      1 == run post_syscall after syscall is done
- *      0 == don't run post_syscall after syscall
- */
-int pre_syscall(struct kretprobe_instance * probe, struct pt_regs *regs);
+#include <linux/kfifo.h>
+#include <linux/list.h>
+
+
+struct syscall_record {
+    struct pt_regs userspace_regs;
+    unsigned long ret;
+    struct list_head copies_to_user;
+};
+
+struct syscall_hook_context {
+    struct syscall_record recorded_syscall;
+
+    /* We need to save pointer to userspace regs becuse
+     * we need to read userspace eax after syscall to see
+     * retcode
+     */
+    struct pt_regs * userspace_regs;
+};
 
 /*
- * @purpose: Runs AFTER selected syscalls where run - and records entire syscall
- *              (with return values)
+ * @purpose: Hook syscalls
  */
-int post_syscall(struct kretprobe_instance *probe, struct pt_regs *regs);
+int init_syscall_hook(void);
+
+/*
+ * @purpose: Unhool syscalls
+ */
+void remove_syscall_hook(void);
+
 
 /* A var to indicate if *python* code is currently in syscall */
 extern int is_in_syscall;
+extern struct syscall_hook_context current_syscall_context;
 
 #endif
