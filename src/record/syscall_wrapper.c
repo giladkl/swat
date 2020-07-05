@@ -79,16 +79,19 @@ int post_syscall(struct kretprobe_instance *probe, struct pt_regs *regs) {
     current_syscall_record->ret = current_syscall_record->userspace_regs_ptr->ax;
 
     mutex_lock(&recorded_syscalls_mutex);
-    IF_TRUE_GOTO(0 == kfifo_in(&recorded_syscalls, &current_syscall_record,
-                        sizeof(void *)),
-                        cleanup_mutex,
-                        "Failed to insert syscall to fifo!");
+
+    if (sizeof(void *) == kfifo_in(&recorded_syscalls, &current_syscall_record, sizeof(void *))) {
+        goto cleanup_mutex;
+    }
+
+    printk("Failed to insert syscall to kfifo!");
+    // If we didn't put the object in kfifo we want to free it...
+    kfree(current_syscall_record);
 
 cleanup_mutex:
     mutex_unlock(&recorded_syscalls_mutex);
 
 cleanup:
-    kfree(current_syscall_record);
     current_syscall_record = NULL;
 
 	return 0;

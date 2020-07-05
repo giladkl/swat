@@ -58,7 +58,6 @@ cleanup:
     return 1;
 }
 
-static int num_of_copies = 0;
 
 int post_copy(struct kretprobe_instance *probe, struct pt_regs *regs) {
 
@@ -67,10 +66,14 @@ int post_copy(struct kretprobe_instance *probe, struct pt_regs *regs) {
     memcpy(current_copy->record.bytes, current_copy->record.from, current_copy->record.len);
 
     list_add_tail(&current_copy->list, &(current_syscall_record->copies_to_user));
-    printk("NUM: %d", num_of_copies++);
-    
+
+    // If we put every thing in list like we want we don't want to free element
+    goto cleanup_without_free;
+
 cleanup:
     kfree(current_copy);
+
+cleanup_without_free:
     current_copy = NULL;
 
 	return 0;
