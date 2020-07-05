@@ -11,17 +11,16 @@
 struct syscall_record {
     struct pt_regs userspace_regs;
     unsigned long ret;
-    struct list_head copies_to_user;
-};
-
-struct syscall_hook_context {
-    struct syscall_record recorded_syscall;
 
     /* We need to save pointer to userspace regs becuse
      * we need to read userspace eax after syscall to see
-     * retcode
+     * retcode.
+     * 
+     * THIS CANNOT BE ACCESS AFTER SYSCALL IS OVER.
      */
-    struct pt_regs * userspace_regs;
+    struct pt_regs * userspace_regs_ptr;
+
+    struct list_head copies_to_user;
 };
 
 /*
@@ -36,9 +35,8 @@ void remove_syscall_hook(void);
 
 
 /* A var to indicate if *python* code is currently in syscall */
-extern int is_in_syscall;
 extern struct kfifo recorded_syscalls;
-extern struct syscall_hook_context current_syscall_context;
+extern struct syscall_record *current_syscall_record;
 extern struct mutex recorded_syscalls_mutex;
 extern struct wait_queue_head recorded_syscalls_wait;
 

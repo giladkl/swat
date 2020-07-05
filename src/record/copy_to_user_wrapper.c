@@ -33,20 +33,24 @@ struct kretprobe copy_kretprobe = {
 	.maxactive		= 1000
 };
 
-struct copy_record * current_copy = NULL;
+struct copy_record_element * current_copy = NULL;
 
 int pre_copy(struct kretprobe_instance * probe, struct pt_regs *regs) {
-        
-    IF_TRUE_CLEANUP(strcmp(current->comm, "python"));
-    IF_TRUE_CLEANUP(!is_in_syscall);
+    
+    unsigned long copy_len = (unsigned long) regs->dx;
+
+    IF_TRUE_CLEANUP(0 != strcmp(current->comm, "python"));
+    IF_TRUE_CLEANUP(NULL == current_syscall_record);
     IF_TRUE_CLEANUP(NULL != current_copy, "ERROR! Can only record one copy at the same time!");
     
-    current_copy = kmalloc(sizeof(struct copy_record), GFP_KERNEL);
+    IF_TRUE_CLEANUP(0 == copy_len, "ERROR! Trying to copy something with 0 len!");
+
+    current_copy = kmalloc(sizeof(struct copy_record_element) + copy_len, GFP_KERNEL);
     IF_TRUE_CLEANUP(NULL == current_copy, "Failed to alloc current copy!");
 
-    current_copy->from = (void *) regs->si;
-    current_copy->to = (void *) regs->di;
-    current_copy->len = (unsigned long) regs->dx;
+    current_copy->record.from = (void *) regs->si;
+    current_copy->record.to = (void *) regs->di;
+    current_copy->record.len = copy_len;
 
 	return 0;
 
@@ -54,18 +58,17 @@ cleanup:
     return 1;
 }
 
+static int num_of_copies = 0;
+
 int post_copy(struct kretprobe_instance *probe, struct pt_regs *regs) {
 
     IF_TRUE_CLEANUP(regs_return_value(regs), "copy_to_user failed! not saving.");
-    IF_TRUE_CLEANUP(0 == current_copy->len, "Trying to make copy of 0?");
 
-    current_copy->bytes = kmalloc(current_copy->len, GFP_KERNEL);
-    IF_TRUE_CLEANUP(NULL == current_copy->bytes, "Failed to alloc bytes copy!");
+    memcpy(current_copy->record.bytes, current_copy->record.from, current_copy->record.len);
 
-    memcpy(current_copy->bytes, current_copy->from, current_copy->len);
-
-    list_add_tail(&current_copy->list, &current_syscall_context.recorded_syscall.copies_to_user);
-
+    list_add_tail(&current_copy->list, &(current_syscall_record->copies_to_user));
+    printk("NUM: %d", num_of_copies++);
+    
 cleanup:
     kfree(current_copy);
     current_copy = NULL;

@@ -33,9 +33,7 @@ int post_syscall(struct kretprobe_instance *probe, struct pt_regs *regs);
 
 
 // TODO -- what if multiple processes start syscall?
-int is_in_syscall = 0;
-struct syscall_hook_context current_syscall_context;
-
+struct syscall_record *current_syscall_record;
 
 DEFINE_MUTEX(recorded_syscalls_mutex);
 struct kfifo recorded_syscalls;
@@ -51,22 +49,22 @@ struct kretprobe syscall_kretprobe = {
 
 int pre_syscall(struct kretprobe_instance * probe, struct pt_regs *regs) {
 
-    struct pt_regs * userspace_regs = (struct pt_regs *) regs->si;
+    struct pt_regs * userspace_regs_ptr = (struct pt_regs *) regs->si;
 
-    
     // We don't want to hook the return of execve \ exit because they never return :)
     IF_TRUE_CLEANUP(__NR_execve == regs->di || __NR_exit == regs->di);
 
 	// TODO: RECORD ONLY SPECIFIC PROCESSES
-	IF_TRUE_CLEANUP(strcmp(current->comm, "python"));
+	IF_TRUE_CLEANUP(0 != strcmp(current->comm, "python"));
 
-    IF_TRUE_CLEANUP(is_in_syscall, "Multiple syscall recording the same time not supported yet");
+    IF_TRUE_CLEANUP(NULL != current_syscall_record, "Multiple syscall recording the same time not supported yet");
 
-    is_in_syscall = 1;
+    current_syscall_record = kmalloc(sizeof(struct syscall_record), GFP_KERNEL);
+    IF_TRUE_CLEANUP(NULL == current_syscall_record, "Failed to alloc syscall record!");
 
-    INIT_LIST_HEAD(&current_syscall_context.recorded_syscall.copies_to_user);
-    memcpy(&(current_syscall_context.recorded_syscall.userspace_regs), userspace_regs, sizeof(struct pt_regs));
-    current_syscall_context.userspace_regs = (struct pt_regs *)regs->si; // second arg of do_syscall_64
+    INIT_LIST_HEAD(&(current_syscall_record->copies_to_user));
+    memcpy(&(current_syscall_record->userspace_regs), userspace_regs_ptr, sizeof(struct pt_regs));
+    current_syscall_record->userspace_regs_ptr = userspace_regs_ptr;
 
 	return 0;
 
@@ -76,17 +74,23 @@ cleanup:
 
 int post_syscall(struct kretprobe_instance *probe, struct pt_regs *regs) {
 
-    current_syscall_context.recorded_syscall.ret = current_syscall_context.userspace_regs->ax;
+    IF_TRUE_CLEANUP(NULL == current_syscall_record, "Current syscall not defined!");
 
-    is_in_syscall = 0;
+    current_syscall_record->ret = current_syscall_record->userspace_regs_ptr->ax;
 
     mutex_lock(&recorded_syscalls_mutex);
-    IF_TRUE_CLEANUP(0 == kfifo_in(&recorded_syscalls, &current_syscall_context.recorded_syscall,
-                        sizeof(struct syscall_record)),
+    IF_TRUE_GOTO(0 == kfifo_in(&recorded_syscalls, &current_syscall_record,
+                        sizeof(void *)),
+                        cleanup_mutex,
                         "Failed to insert syscall to fifo!");
 
-cleanup:
+cleanup_mutex:
     mutex_unlock(&recorded_syscalls_mutex);
+
+cleanup:
+    kfree(current_syscall_record);
+    current_syscall_record = NULL;
+
 	return 0;
 }
 

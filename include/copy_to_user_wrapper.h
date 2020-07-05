@@ -6,8 +6,15 @@ struct copy_record
     void * from;
     void * to;
     unsigned long len;
-    void * bytes;
+    unsigned char bytes[];
+};
+
+struct copy_record_element
+{
     struct list_head list;
+    
+    // This must be last because of bytes[]
+    struct copy_record record;
 };
 
 /*
@@ -16,7 +23,7 @@ struct copy_record
 int init_copy_hook(void);
 
 /*
- * @purpose: Unhool copy_to_user
+ * @purpose: Unhook copy_to_user
  */
 void remove_copy_hook(void);
 
