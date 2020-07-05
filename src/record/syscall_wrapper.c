@@ -1,5 +1,6 @@
 #include <linux/kprobes.h>
 #include <asm/unistd.h>
+#include <linux/mutex.h>
 
 #include "syscall_wrapper.h"
 #include "utils.h"
@@ -36,7 +37,9 @@ int is_in_syscall = 0;
 struct syscall_hook_context current_syscall_context;
 
 
+DEFINE_MUTEX(recorded_syscalls_mutex);
 struct kfifo recorded_syscalls;
+DECLARE_WAIT_QUEUE_HEAD(recorded_syscalls_wait);
 
 struct kretprobe syscall_kretprobe = {
 	.kp.symbol_name	= "do_syscall_64",
@@ -75,13 +78,15 @@ int post_syscall(struct kretprobe_instance *probe, struct pt_regs *regs) {
 
     current_syscall_context.recorded_syscall.ret = current_syscall_context.userspace_regs->ax;
 
+    is_in_syscall = 0;
+
+    mutex_lock(&recorded_syscalls_mutex);
     IF_TRUE_CLEANUP(0 == kfifo_in(&recorded_syscalls, &current_syscall_context.recorded_syscall,
                         sizeof(struct syscall_record)),
                         "Failed to insert syscall to fifo!");
 
-    is_in_syscall = 0;
-
 cleanup:
+    mutex_unlock(&recorded_syscalls_mutex);
 	return 0;
 }
 
