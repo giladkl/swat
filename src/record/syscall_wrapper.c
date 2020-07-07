@@ -7,7 +7,7 @@
 
 // TODO -- is 1 << 22 Too big???
 // Maybe we should just save pointer to heap in kfifo?
-#define SYSCALL_FIFO_ORDER (22)
+#define SYSCALL_FIFO_ORDER (15)
 #define SYSCALL_FIFO_SIZE (1 << SYSCALL_FIFO_ORDER)
 
 /*
@@ -52,13 +52,12 @@ int pre_syscall(struct kretprobe_instance * probe, struct pt_regs *regs) {
     struct pt_regs * userspace_regs_ptr = (struct pt_regs *) regs->si;
 
     // We don't want to hook the return of execve \ exit because they never return :)
-    IF_TRUE_CLEANUP(__NR_execve == regs->di || __NR_exit == regs->di);
-
+    IF_TRUE_CLEANUP(__NR_execve == regs->di || __NR_exit == regs->di || __NR_exit_group == regs->di);
+    
 	// TODO: RECORD ONLY SPECIFIC PROCESSES
 	IF_TRUE_CLEANUP(0 != strcmp(current->comm, "python"));
-
     IF_TRUE_CLEANUP(NULL != current_syscall_record, "Multiple syscall recording the same time not supported yet");
-
+    
     current_syscall_record = kmalloc(sizeof(struct syscall_record), GFP_KERNEL);
     IF_TRUE_CLEANUP(NULL == current_syscall_record, "Failed to alloc syscall record!");
 
@@ -81,10 +80,13 @@ int post_syscall(struct kretprobe_instance *probe, struct pt_regs *regs) {
     mutex_lock(&recorded_syscalls_mutex);
 
     if (sizeof(void *) == kfifo_in(&recorded_syscalls, &current_syscall_record, sizeof(void *))) {
+        wake_up(&recorded_syscalls_wait);
         goto cleanup_mutex;
-    }
+    }    
 
     printk("Failed to insert syscall to kfifo!");
+
+    // TODO THIS SHOULD NOT BE WITH MUTEX
     // If we didn't put the object in kfifo we want to free it...
     kfree(current_syscall_record);
 
@@ -93,7 +95,6 @@ cleanup_mutex:
 
 cleanup:
     current_syscall_record = NULL;
-
 	return 0;
 }
 

@@ -14,6 +14,7 @@ static int __init recorder_init(void) {
 	IF_TRUE_CLEANUP(init_syscall_hook(), "Failed to init syscall hook");
 	IF_TRUE_GOTO(init_copy_hook(), cleanup_syscall_hook, "Failed to init syscall hook");
 	IF_TRUE_GOTO(init_syscall_dumper(), cleanup_copy_hook, "Failed to init syscall dumper!");
+
 	return 0;
 
 cleanup_copy_hook:

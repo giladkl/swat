@@ -7,4 +7,4 @@ all:
 	make -C $(BUILD_DIR) M=$(CURDIR) modules
 
 clean:
-	make -C $(PWD)/../linux-5.4.1/ M=$(CURDIR) clean
+	make -C  $(PWD)/../linux-5.4.1 M=$(CURDIR) clean
