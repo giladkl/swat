@@ -5,7 +5,7 @@
 #include "syscall_wrapper.h"
 #include "utils.h"
 
-// TODO -- is 1 << 22 Too big???
+// TODO -- is 1 << 15 Too big???
 // Maybe we should just save pointer to heap in kfifo?
 #define SYSCALL_FIFO_ORDER (15)
 #define SYSCALL_FIFO_SIZE (1 << SYSCALL_FIFO_ORDER)
@@ -100,10 +100,10 @@ cleanup:
 
 int init_syscall_hook(void) {
 
-	IF_TRUE_CLEANUP(0 > register_kretprobe(&syscall_kretprobe), "Failed to init syscall kprobe!");
-
     IF_TRUE_GOTO(kfifo_alloc(&recorded_syscalls, SYSCALL_FIFO_SIZE, GFP_KERNEL),
                     cleanup_unregister_kprobe, "Failed to alloc kfifo!");
+
+	IF_TRUE_CLEANUP(0 > register_kretprobe(&syscall_kretprobe), "Failed to init syscall kprobe!");
     return 0;
 
 cleanup_unregister_kprobe:
@@ -115,4 +115,5 @@ cleanup:
 
 void remove_syscall_hook(void) {
     unregister_kretprobe(&syscall_kretprobe);
+    kfifo_free(&recorded_syscalls);
 }

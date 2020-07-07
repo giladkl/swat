@@ -197,5 +197,5 @@ cleanup:
 }
 
 void remove_syscall_dumper(void) {
-
+    remove_proc_entry(PROC_NAME, NULL);
 }
